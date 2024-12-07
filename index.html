@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block Editor POC</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            padding-top: 60px;
+            background: #f8fafc;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            padding: 0 1rem;
+            z-index: 1000;
+        }
+
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        .mobile-controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #fff;
+            box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.1);
+            padding: 0.75rem;
+            display: flex;
+            gap: 0.5rem;
+            z-index: 1000;
+        }
+
+        .mobile-btn {
+            flex: 1;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .mobile-btn.secondary {
+            background: #64748b;
+        }
+
+        .mobile-btn:active {
+            transform: translateY(1px);
+        }
+
+        .editor-container {
+            max-width: 800px;
+            margin: 1rem auto;
+            padding: 0 1rem;
+            margin-bottom: 80px;
+        }
+
+        .block {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin: 0.75rem 0;
+            position: relative;
+            display: flex;
+            align-items: flex-start;
+            background: #fff;
+        }
+
+        .block:focus-within {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        .block-number {
+            padding: 12px 8px;
+            color: #64748b;
+            user-select: none;
+            min-width: 48px;
+            text-align: right;
+            font-size: 0.875rem;
+        }
+
+        .block-content {
+            flex-grow: 1;
+            min-height: 24px;
+            padding: 12px;
+            outline: none;
+            font-size: 1rem;
+        }
+
+        .block-content:empty::before {
+            content: 'Type something...';
+            color: #94a3b8;
+            position: absolute;
+            pointer-events: none;
+        }
+
+        /* Indentation levels */
+        .block[data-level="1"] { margin-left: 1.5rem; }
+        .block[data-level="2"] { margin-left: 3rem; }
+
+        .rendered-content {
+            margin: 1rem;
+            padding: 1rem;
+            border-radius: 8px;
+            background: #fff;
+            white-space: pre-wrap;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+
+        .rendered-block {
+            padding: 0.5rem 0;
+        }
+
+        @media (max-width: 640px) {
+            .editor-container {
+                margin-bottom: 100px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>Block Editor POC (numbering concept)</h1>
+    </header>
+
+    <div class="editor-container">
+        <div class="block" data-level="0">
+            <div class="block-number">1.</div>
+            <div class="block-content" contenteditable="true"></div>
+        </div>
+    </div>
+
+    <div class="rendered-content"></div>
+
+    <div class="mobile-controls">
+        <button class="mobile-btn secondary" id="indentBtn">Indent</button>
+        <button class="mobile-btn secondary" id="outdentBtn">Outdent</button>
+        <button class="mobile-btn" id="renderBtn">Render</button>
+    </div>
+
+    <script>
+        class BlockEditor {
+            constructor(container) {
+                this.container = container;
+                this.blocks = [];
+                this.activeBlock = null;
+                this.initializeBlocks();
+                this.bindEvents();
+            }
+
+            initializeBlocks() {
+                const existingBlocks = this.container.querySelectorAll('.block');
+                existingBlocks.forEach(block => {
+                    this.blocks.push({
+                        element: block,
+                        level: parseInt(block.dataset.level) || 0
+                    });
+                });
+                this.updateNumbering();
+            }
+
+            bindEvents() {
+                this.container.addEventListener('keydown', (e) => {
+                    if (e.target.classList.contains('block-content')) {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            this.createNewBlock(e.target);
+                        } else if (e.key === 'Tab') {
+                            e.preventDefault();
+                            const block = e.target.closest('.block');
+                            if (e.shiftKey) {
+                                this.outdentBlock(block);
+                            } else {
+                                this.indentBlock(block);
+                            }
+                        } else if (e.key === 'Backspace' && e.target.textContent === '') {
+                            const block = e.target.closest('.block');
+                            if (this.blocks.length > 1) {
+                                e.preventDefault();
+                                this.removeBlock(block);
+                            }
+                        }
+                    }
+                });
+
+                // Track active block
+                this.container.addEventListener('focus', (e) => {
+                    if (e.target.classList.contains('block-content')) {
+                        this.activeBlock = e.target.closest('.block');
+                    }
+                }, true);
+
+                // Mobile controls
+                document.getElementById('indentBtn').addEventListener('click', () => {
+                    if (this.activeBlock) {
+                        this.indentBlock(this.activeBlock);
+                    }
+                });
+
+                document.getElementById('outdentBtn').addEventListener('click', () => {
+                    if (this.activeBlock) {
+                        this.outdentBlock(this.activeBlock);
+                    }
+                });
+
+                document.getElementById('renderBtn').addEventListener('click', () => {
+                    this.renderContent();
+                });
+            }
+
+            createNewBlock(currentContent) {
+                const currentBlock = currentContent.closest('.block');
+                const currentIndex = this.blocks.findIndex(b => b.element === currentBlock);
+                const currentLevel = parseInt(currentBlock.dataset.level) || 0;
+
+                const newBlock = currentBlock.cloneNode(true);
+                newBlock.querySelector('.block-content').textContent = '';
+                
+                currentBlock.insertAdjacentElement('afterend', newBlock);
+                
+                this.blocks.splice(currentIndex + 1, 0, {
+                    element: newBlock,
+                    level: currentLevel
+                });
+
+                newBlock.querySelector('.block-content').focus();
+                this.updateNumbering();
+            }
+
+            indentBlock(block) {
+                const index = this.blocks.findIndex(b => b.element === block);
+                if (index > 0) {
+                    const currentLevel = parseInt(block.dataset.level) || 0;
+                    const prevLevel = parseInt(this.blocks[index - 1].element.dataset.level) || 0;
+                    
+                    if (currentLevel <= prevLevel && currentLevel < 2) {
+                        block.dataset.level = currentLevel + 1;
+                        this.blocks[index].level = currentLevel + 1;
+                        this.updateNumbering();
+                    }
+                }
+            }
+
+            outdentBlock(block) {
+                const currentLevel = parseInt(block.dataset.level) || 0;
+                if (currentLevel > 0) {
+                    block.dataset.level = currentLevel - 1;
+                    this.blocks[this.blocks.findIndex(b => b.element === block)].level = currentLevel - 1;
+                    this.updateNumbering();
+                }
+            }
+
+            removeBlock(block) {
+                const index = this.blocks.findIndex(b => b.element === block);
+                if (index > 0) {
+                    block.remove();
+                    this.blocks.splice(index, 1);
+                    this.updateNumbering();
+                    this.blocks[index - 1].element.querySelector('.block-content').focus();
+                }
+            }
+
+            updateNumbering() {
+                let mainCounter = 0;
+                let subCounter = 0;
+                let letterCounter = 0;
+                let currentMain = 0;
+                let currentSub = 0;
+                
+                this.blocks.forEach((block, index) => {
+                    const level = block.level;
+                    let numberStr = '';
+                    
+                    switch(level) {
+                        case 0:
+                            mainCounter++;
+                            currentMain = mainCounter;
+                            currentSub = 0;
+                            letterCounter = 0;
+                            numberStr = `${currentMain}.`;
+                            break;
+                            
+                        case 1:
+                            subCounter++;
+                            currentSub = subCounter;
+                            letterCounter = 0;
+                            numberStr = `${currentMain}.${currentSub}`;
+                            break;
+                            
+                        case 2:
+                            letterCounter++;
+                            numberStr = `${String.fromCharCode(96 + letterCounter)})`;
+                            break;
+                    }
+                    
+                    if (level === 0) {
+                        subCounter = 0;
+                    }
+                    
+                    block.element.querySelector('.block-number').textContent = numberStr;
+                });
+            }
+
+            renderContent() {
+                const renderedContent = document.querySelector('.rendered-content');
+                renderedContent.innerHTML = '';
+                
+                this.blocks.forEach(block => {
+                    const content = block.element.querySelector('.block-content').textContent;
+                    const number = block.element.querySelector('.block-number').textContent;
+                    const level = block.level;
+
+                    const renderedBlock = document.createElement('div');
+                    renderedBlock.className = 'rendered-block';
+                    renderedBlock.style.marginLeft = `${level * 1.5}rem`;
+                    renderedBlock.textContent = `${number} ${content}`;
+                    renderedContent.appendChild(renderedBlock);
+                });
+                
+                renderedContent.style.display = this.blocks.length ? 'block' : 'none';
+            }
+        }
+
+        // Initialize the editor
+        document.addEventListener('DOMContentLoaded', () => {
+            const editor = new BlockEditor(document.querySelector('.editor-container'));
+        });
+    </script>
+</body>
+</html>
