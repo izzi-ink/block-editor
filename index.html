@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Block Editor POC</title>
+    <title>Modified Block Editor</title>
     <style>
         * {
             margin: 0;
@@ -13,7 +13,7 @@
 
         body {
             font-family: system-ui, -apple-system, sans-serif;
-            padding-top: 60px;
+            padding-top: 120px;
             background: #f8fafc;
         }
 
@@ -37,40 +37,49 @@
             color: #0f172a;
         }
 
-        .mobile-controls {
+        .control-bar {
             position: fixed;
-            bottom: 0;
+            top: 60px;
             left: 0;
             right: 0;
             background: #fff;
-            box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
             padding: 0.75rem;
             display: flex;
-            gap: 0.5rem;
-            z-index: 1000;
+            justify-content: center;
+            z-index: 999;
         }
 
-        .mobile-btn {
-            flex: 1;
+        .control-group {
+            display: flex;
+            gap: 0.5rem;
+            max-width: 800px;
+            padding: 0 1rem;
+        }
+
+        .control-btn {
             background: #3b82f6;
             color: white;
             border: none;
             border-radius: 8px;
-            padding: 0.75rem;
-            font-size: 0.875rem;
-            font-weight: 500;
+            width: 40px;
+            height: 40px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 0.5rem;
+            transition: background-color 0.2s, transform 0.1s;
         }
 
-        .mobile-btn.secondary {
+        .control-btn:hover {
+            background: #2563eb;
+        }
+
+        .control-btn.secondary {
             background: #64748b;
         }
 
-        .mobile-btn:active {
+        .control-btn:active {
             transform: translateY(1px);
         }
 
@@ -78,7 +87,6 @@
             max-width: 800px;
             margin: 1rem auto;
             padding: 0 1rem;
-            margin-bottom: 80px;
         }
 
         .block {
@@ -120,12 +128,12 @@
             pointer-events: none;
         }
 
-        /* Indentation levels */
         .block[data-level="1"] { margin-left: 1.5rem; }
         .block[data-level="2"] { margin-left: 3rem; }
 
         .rendered-content {
-            margin: 1rem;
+            margin: 1rem auto;
+            max-width: 800px;
             padding: 1rem;
             border-radius: 8px;
             background: #fff;
@@ -138,20 +146,48 @@
             padding: 0.5rem 0;
         }
 
+        .block[data-type="heading"] .block-content {
+            font-weight: 600;
+        }
+
         @media (max-width: 640px) {
             .editor-container {
-                margin-bottom: 100px;
+                margin-top: 0.5rem;
             }
         }
     </style>
 </head>
 <body>
     <header class="header">
-        <h1>Block Editor POC (numbering concept)</h1>
+        <h1>Modified Block Editor</h1>
     </header>
 
+    <div class="control-bar">
+        <div class="control-group">
+            <button class="control-btn secondary" id="outdentBtn" title="Outdent">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 17l-5-5 5-5"/>
+                    <line x1="17" y1="17" x2="17" y2="7"/>
+                </svg>
+            </button>
+            <button class="control-btn secondary" id="indentBtn" title="Indent">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M13 17l5-5-5-5"/>
+                    <line x1="7" y1="17" x2="7" y2="7"/>
+                </svg>
+            </button>
+            <button class="control-btn" id="renderBtn" title="Publish">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                    <polyline points="16 6 12 2 8 6"/>
+                    <line x1="12" y1="2" x2="12" y2="15"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
     <div class="editor-container">
-        <div class="block" data-level="0">
+        <div class="block" data-level="0" data-type="heading">
             <div class="block-number">1.</div>
             <div class="block-content" contenteditable="true"></div>
         </div>
@@ -159,18 +195,13 @@
 
     <div class="rendered-content"></div>
 
-    <div class="mobile-controls">
-        <button class="mobile-btn secondary" id="indentBtn">Indent</button>
-        <button class="mobile-btn secondary" id="outdentBtn">Outdent</button>
-        <button class="mobile-btn" id="renderBtn">Render</button>
-    </div>
-
     <script>
         class BlockEditor {
             constructor(container) {
                 this.container = container;
                 this.blocks = [];
                 this.activeBlock = null;
+                this.mainCounter = 0;
                 this.initializeBlocks();
                 this.bindEvents();
             }
@@ -180,7 +211,8 @@
                 existingBlocks.forEach(block => {
                     this.blocks.push({
                         element: block,
-                        level: parseInt(block.dataset.level) || 0
+                        level: parseInt(block.dataset.level) || 0,
+                        type: block.dataset.type || 'heading'
                     });
                 });
                 this.updateNumbering();
@@ -210,14 +242,12 @@
                     }
                 });
 
-                // Track active block
                 this.container.addEventListener('focus', (e) => {
                     if (e.target.classList.contains('block-content')) {
                         this.activeBlock = e.target.closest('.block');
                     }
                 }, true);
 
-                // Mobile controls
                 document.getElementById('indentBtn').addEventListener('click', () => {
                     if (this.activeBlock) {
                         this.indentBlock(this.activeBlock);
@@ -243,11 +273,19 @@
                 const newBlock = currentBlock.cloneNode(true);
                 newBlock.querySelector('.block-content').textContent = '';
                 
+                // If current block is a heading at level 0, create a content block
+                if (currentLevel === 0 && currentBlock.dataset.type === 'heading') {
+                    newBlock.dataset.type = 'content';
+                } else {
+                    newBlock.dataset.type = currentBlock.dataset.type;
+                }
+                
                 currentBlock.insertAdjacentElement('afterend', newBlock);
                 
                 this.blocks.splice(currentIndex + 1, 0, {
                     element: newBlock,
-                    level: currentLevel
+                    level: currentLevel,
+                    type: newBlock.dataset.type
                 });
 
                 newBlock.querySelector('.block-content').focus();
@@ -263,6 +301,9 @@
                     if (currentLevel <= prevLevel && currentLevel < 2) {
                         block.dataset.level = currentLevel + 1;
                         this.blocks[index].level = currentLevel + 1;
+                        // When indenting, always make it a numbered block
+                        block.dataset.type = 'heading';
+                        this.blocks[index].type = 'heading';
                         this.updateNumbering();
                     }
                 }
@@ -273,6 +314,11 @@
                 if (currentLevel > 0) {
                     block.dataset.level = currentLevel - 1;
                     this.blocks[this.blocks.findIndex(b => b.element === block)].level = currentLevel - 1;
+                    // When outdenting to level 0, make it a heading
+                    if (currentLevel - 1 === 0) {
+                        block.dataset.type = 'heading';
+                        this.blocks[this.blocks.findIndex(b => b.element === block)].type = 'heading';
+                    }
                     this.updateNumbering();
                 }
             }
@@ -296,28 +342,33 @@
                 
                 this.blocks.forEach((block, index) => {
                     const level = block.level;
+                    const type = block.type;
                     let numberStr = '';
                     
-                    switch(level) {
-                        case 0:
-                            mainCounter++;
-                            currentMain = mainCounter;
-                            currentSub = 0;
-                            letterCounter = 0;
-                            numberStr = `${currentMain}.`;
-                            break;
-                            
-                        case 1:
-                            subCounter++;
-                            currentSub = subCounter;
-                            letterCounter = 0;
-                            numberStr = `${currentMain}.${currentSub}`;
-                            break;
-                            
-                        case 2:
-                            letterCounter++;
-                            numberStr = `${String.fromCharCode(96 + letterCounter)})`;
-                            break;
+                    if (type === 'heading') {
+                        switch(level) {
+                            case 0:
+                                mainCounter++;
+                                currentMain = mainCounter;
+                                currentSub = 0;
+                                letterCounter = 0;
+                                numberStr = `${currentMain}.`;
+                                break;
+                                
+                            case 1:
+                                subCounter++;
+                                currentSub = subCounter;
+                                letterCounter = 0;
+                                numberStr = `${currentMain}.${currentSub}`;
+                                break;
+                                
+                            case 2:
+                                letterCounter++;
+                                numberStr = `${String.fromCharCode(96 + letterCounter)})`;
+                                break;
+                        }
+                    } else {
+                        numberStr = ''; // No number for content blocks
                     }
                     
                     if (level === 0) {
