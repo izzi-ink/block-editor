@@ -99,6 +99,33 @@
             background: #fff;
         }
 
+        .block-inner {
+            display: flex;
+            flex-grow: 1;
+            align-items: flex-start;
+        }
+
+        .new-block-btn {
+            background: none;
+            border: none;
+            padding: 12px;
+            cursor: pointer;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+        }
+
+        .new-block-btn:hover {
+            opacity: 1;
+        }
+
+        .block:focus-within .new-block-btn {
+            opacity: 0.8;
+        }
+
         .block:focus-within {
             border-color: #3b82f6;
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
@@ -159,7 +186,7 @@
 </head>
 <body>
     <header class="header">
-        <h1>Modified Block Editor</h1>
+        <h1>POC Block Editor (Numbering)</h1>
     </header>
 
     <div class="control-bar">
@@ -188,8 +215,16 @@
 
     <div class="editor-container">
         <div class="block" data-level="0" data-type="heading">
-            <div class="block-number">1.</div>
-            <div class="block-content" contenteditable="true" data-placeholder="Type Legal Term Heading"></div>
+            <div class="block-inner">
+                <div class="block-number">1.</div>
+                <div class="block-content" contenteditable="true" data-placeholder="Type Legal Term Heading"></div>
+            </div>
+            <button class="new-block-btn" title="Add new block">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+            </button>
         </div>
     </div>
 
@@ -232,6 +267,14 @@
             }
 
             bindEvents() {
+                this.container.addEventListener('click', (e) => {
+                    if (e.target.closest('.new-block-btn')) {
+                        const block = e.target.closest('.block');
+                        const content = block.querySelector('.block-content');
+                        this.createNewBlock(content);
+                    }
+                });
+
                 this.container.addEventListener('keydown', (e) => {
                     if (e.target.classList.contains('block-content')) {
                         if (e.key === 'Enter' && !e.shiftKey) {
@@ -299,8 +342,25 @@
                 const currentIndex = this.blocks.findIndex(b => b.element === currentBlock);
                 const currentLevel = parseInt(currentBlock.dataset.level) || 0;
 
-                const newBlock = currentBlock.cloneNode(true);
-                newBlock.querySelector('.block-content').textContent = '';
+                // If current block is a heading at level 0, create a content block
+                const newType = (currentLevel === 0 && currentBlock.dataset.type === 'heading') ? 'content' : currentBlock.dataset.type;
+
+                const newBlock = document.createElement('div');
+                newBlock.className = 'block';
+                newBlock.dataset.level = currentLevel;
+                newBlock.dataset.type = newType;
+                newBlock.innerHTML = `
+                    <div class="block-inner">
+                        <div class="block-number"></div>
+                        <div class="block-content" contenteditable="true"></div>
+                    </div>
+                    <button class="new-block-btn" title="Add new block">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                    </button>
+                `;
                 
                 // If current block is a heading at level 0, create a content block
                 if (currentLevel === 0 && currentBlock.dataset.type === 'heading') {
