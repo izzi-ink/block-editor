@@ -122,7 +122,7 @@
         }
 
         .block-content:empty::before {
-            content: 'Type something...';
+            content: attr(data-placeholder);
             color: #94a3b8;
             position: absolute;
             pointer-events: none;
@@ -189,7 +189,7 @@
     <div class="editor-container">
         <div class="block" data-level="0" data-type="heading">
             <div class="block-number">1.</div>
-            <div class="block-content" contenteditable="true"></div>
+            <div class="block-content" contenteditable="true" data-placeholder="Type Legal Term Heading"></div>
         </div>
     </div>
 
@@ -207,13 +207,26 @@
             }
 
             initializeBlocks() {
-                const existingBlocks = this.container.querySelectorAll('.block');
-                existingBlocks.forEach(block => {
+                const blocks = this.container.querySelectorAll('.block');
+                blocks.forEach(block => {
+                    const level = parseInt(block.dataset.level) || 0;
+                    const type = block.dataset.type || 'heading';
                     this.blocks.push({
                         element: block,
-                        level: parseInt(block.dataset.level) || 0,
-                        type: block.dataset.type || 'heading'
+                        level: level,
+                        type: type
                     });
+                    const content = block.querySelector('.block-content');
+                    // Ensure placeholder is set based on the block's type and level
+                    if (level === 0 && type === 'heading') {
+                        content.setAttribute('data-placeholder', 'Type Legal Term Heading');
+                    } else if (level === 0 && type === 'content') {
+                        content.setAttribute('data-placeholder', 'Type Legal Term Body');
+                    } else if (level === 1) {
+                        content.setAttribute('data-placeholder', 'Type the sub-clause to this Legal Term');
+                    } else if (level === 2) {
+                        content.setAttribute('data-placeholder', 'Type detail to the sub-clause here');
+                    }
                 });
                 this.updateNumbering();
             }
@@ -265,6 +278,22 @@
                 });
             }
 
+            updatePlaceholder(block) {
+                const level = parseInt(block.dataset.level) || 0;
+                const type = block.dataset.type || 'heading';
+                const content = block.querySelector('.block-content');
+                
+                if (level === 0 && type === 'heading') {
+                    content.setAttribute('data-placeholder', 'Type Legal Term Heading');
+                } else if (level === 0 && type === 'content') {
+                    content.setAttribute('data-placeholder', 'Type Legal Term Body');
+                } else if (level === 1) {
+                    content.setAttribute('data-placeholder', 'Type the sub-clause to this Legal Term');
+                } else if (level === 2) {
+                    content.setAttribute('data-placeholder', 'Type detail to the sub-clause here');
+                }
+            }
+
             createNewBlock(currentContent) {
                 const currentBlock = currentContent.closest('.block');
                 const currentIndex = this.blocks.findIndex(b => b.element === currentBlock);
@@ -279,6 +308,8 @@
                 } else {
                     newBlock.dataset.type = currentBlock.dataset.type;
                 }
+                
+                this.updatePlaceholder(newBlock);
                 
                 currentBlock.insertAdjacentElement('afterend', newBlock);
                 
@@ -304,7 +335,9 @@
                         // When indenting, always make it a numbered block
                         block.dataset.type = 'heading';
                         this.blocks[index].type = 'heading';
-                        this.updateNumbering();
+                        this.updatePlaceholder(block);
+                        this.updatePlaceholder(block);
+                    this.updateNumbering();
                     }
                 }
             }
